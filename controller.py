@@ -1,71 +1,164 @@
-from pybricks.parameters import Port, Stop, Direction, Button, Color
-
 import math
 
 class Controller:
-    def __init__(self, wheel_base, wheel_radius, left_motor, right_motor):
+    def __init__(self, wheel_base, wheel_radius, watch, left_motor, right_motor):
         self.wheel_base = wheel_base        # Distance between wheels
         self.wheel_radius = wheel_radius    # Radius of each wheel
         self.left_motor = left_motor        # Motor obj from Lego
         self.right_motor = right_motor      # Motor obj from Lego
-        self.Kp_linear = 0.5                # Proportional gain for linear velocity
-        self.Kp_angular = 2.0               # Proportional gain for angular velocity
-        self.threshold = 0.1                # Precision of distance/orientation calculations
-        self.segment_time = 1000            # time(ms) to run/block before error checks
+        self.stopwatch = watch              # Stopwatch obj from Lego
 
+        self.Kp = 200.0                      # Proportional gain for angular velocity
+        self.Kd = 28.28427                   # Derivative gain for angular velocity
+
+        self.THRESHOLD_DIST = 50.0          # Distance(mm) Goal reached within Precision
+        self.THRESHOLD_ORIENT = 1.0         # Angle(deg) Goal reached within Precision
+        self.MAX_SPEED = 900                # Motor MAX speed approx 900 deg/s (150 RPM)
+        self.SET_SPEED = self.MAX_SPEED/2   # Default speed with room for increase/decrease
+
+        self.x_dot = 0.0                    # world x_dot
+        self.y_dot = 0.0                    # world y_dot
+        self.omega_dot = 0.0                # world omega_dot = local omega_dot
+        self.position = [0.0, 0.0]          # world position [x, y]
+        self.orientation = 0.0              # world orientation
+
+    """
+    We get the path in world frame as waypoints (target x, target y, target orientation)
+
+    """
     def follow_path(self, path):
-        # loop through each waypoint
+        # loop through each waypoint in the path
         for target_x, target_y, target_orientation in path:
-            current_x, current_y, current_orientation = self.get_current_pose()
-            
-            while not self.reached_target(current_x, current_y, current_orientation, 
-                                          target_x, target_y, target_orientation):
-                # Calculate required linear and angular velocities
-                linear_velocity, angular_velocity = self.calculate_velocities(
-                    current_x, current_y, current_orientation, 
-                    target_x, target_y, target_orientation
-                )
-                
-                # Convert to wheel speeds
-                left_speed, right_speed = self.convert_to_wheel_speeds(linear_velocity, angular_velocity)
-                
-                # Set motor speeds
-                self.left_motor.run_time(left_speed, self.segment_time, then=Stop.HOLD, wait=False)
-                self.right_motor.run_time(right_speed, self.segment_time, then=Stop.HOLD, wait=True)
-                
-                # Update current position
-                current_x, current_y, current_orientation = self.get_current_pose()
+            self.resets()
+            print("Moving to: (x: {0}mm, y: {1}mm, ang: {2}°)".format(target_x, target_y, target_orientation))
 
-    def get_current_pose(self):
-        # position based on motor encoders
-        left_distance = self.left_motor.angle() * self.wheel_radius
-        right_distance = self.right_motor.angle() * self.wheel_radius
+            # position control loop with goal
+            print("Starting PD for position.")
+            while not self.reached_target_pos(target_x, target_y):
+                self.update_odometry()                          # Get bot position, orientation
+                self.PDcontrol_position(target_x, target_y)     # Adjust bot position
+
+            # orientation control loop with goal
+            print("Starting PD for orientation.")
+            while not self.reached_target_orient(target_orientation):
+                self.update_odometry()                          # Get bot position, orientation
+                self.PDcontrol_orientation(target_orientation)  # Adjust bot orientation
+
+            print("Waypoint complete.")
+        print("** Goal Reached **")
+
+    def resets(self):
+        # Reset encoder
+        self.left_motor.reset_angle(0)
+        self.right_motor.reset_angle(0)
+        # Reset globals
+        self.x_dot = 0.0 
+        self.y_dot = 0.0 
+        self.omega_dot = 0.0  
+        self.position = [0.0, 0.0]
+        self.orientation = 0.0
+        # Reset time interval
+        self.stopwatch.reset()
+        # Reset initial motor speed
+        self.left_motor.run(self.SET_SPEED)
+        self.right_motor.run(self.SET_SPEED)
+    
+    
+    """
+    GOAL (each waypoint) reached if at target within THRESHOLD
+    Parameters in World Frame
+    """
+    def reached_target_pos(self, target_x, target_y):
+        distance = math.sqrt((target_x - self.position[0])**2 + (target_y - self.position[1])**2)
+        return distance < self.THRESHOLD_DIST
+
+    def reached_target_orient(self, target_orientation):
+        angle_diff = abs(self.normalize_angle(target_orientation - self.orientation))
+        return angle_diff < self.THRESHOLD_ORIENT
+
+    # Normalized Angles: angles are in range [-180, 180]. This prevents angle wrapping.
+    def normalize_angle(self, angle):
+        return (angle + 180) % 360 - 180
+
+    
+    """
+    https://www.youtube.com/watch?v=83r-Z9vMIiA
+    """
+    def PDcontrol_position(self, target_x, target_y):
         
-        distance = (left_distance + right_distance) / 2
-        orientation = (right_distance - left_distance) / self.wheel_base
+        # angular error
+        bot_to_target_orient = math.degrees(math.atan2(target_y - self.position[1], target_x - self.position[0]))
+        error = self.normalize_angle(bot_to_target_orient - self.orientation)
+
+        # angular velocity error
+        top1 = (self.position[0] - target_x) * self.y_dot
+        top2 = (self.position[1] - target_y) * self.x_dot
+        bot1 = (self.position[0] - target_x)**2
+        bot2 = (self.position[1] - target_y)**2
+        bot_to_target_orient_dot = (top1 - top2) / (bot1 + bot2)
+        error_dot = bot_to_target_orient_dot - self.omega_dot
+
+        # PD Control law
+        angular_v = self.Kp * error + self.Kd * error_dot
+
+        # left: (v-w)/r
+        # right: (v+w)/r
+        left_speed = (self.SET_SPEED - angular_v) / self.wheel_radius
+        right_speed = (self.SET_SPEED + angular_v) / self.wheel_radius
+        # Apply speed limits
+        left_speed = max(min(left_speed, self.MAX_SPEED), -self.MAX_SPEED)
+        right_speed = max(min(right_speed, self.MAX_SPEED), -self.MAX_SPEED)
         
-        x = distance * math.cos(orientation)
-        y = distance * math.sin(orientation)
-        return x, y, orientation
+        self.left_motor.run(left_speed)
+        self.right_motor.run(right_speed)
 
-    def reached_target(self, current_x, current_y, current_orientation, 
-                       target_x, target_y, target_orientation):
-        # goal reached to precision of target - current
-        distance = math.sqrt((target_x - current_x)**2 + (target_y - current_y)**2)
-        angle_diff = abs(target_orientation - current_orientation)
-        return distance < self.threshold and angle_diff < self.threshold
+    def PDcontrol_orientation(self, target_orientation):
+        error = self.normalize_angle(target_orientation - self.orientation)
+        error_dot = -1 * self.omega_dot
 
-    def calculate_velocities(self, current_x, current_y, current_orientation, 
-                             target_x, target_y, target_orientation):
-        # Simple proportional control
-        distance = math.sqrt((target_x - current_x)**2 + (target_y - current_y)**2)
-        angle = math.atan2(target_y - current_y, target_x - current_x)
-        
-        linear_velocity = distance * self.Kp_linear
-        angular_velocity = (angle - current_orientation) * self.Kp_angular
-        return linear_velocity, angular_velocity
+        # PD Control law
+        angular_v = self.Kp * error + self.Kd * error_dot
 
-    def convert_to_wheel_speeds(self, linear_velocity, angular_velocity):
-        left_speed = (linear_velocity - angular_velocity * self.wheel_base / 2) / self.wheel_radius
-        right_speed = (linear_velocity + angular_velocity * self.wheel_base / 2) / self.wheel_radius
-        return left_speed, right_speed
+        # left: -w/r
+        # right: w/r
+        left_speed = (-1 * angular_v) / self.wheel_radius
+        right_speed = angular_v / self.wheel_radius
+        # Apply speed limits
+        left_speed = max(min(left_speed, self.MAX_SPEED), -self.MAX_SPEED)
+        right_speed = max(min(right_speed, self.MAX_SPEED), -self.MAX_SPEED)
+
+        self.left_motor.run(left_speed)
+        self.right_motor.run(right_speed)
+    
+
+    """
+    Odometry is where the bot thinks it is in the world from its sensors (encoder).
+    returns the bots estimated omega_dot, x_dot, y_dot, position and orientation in the world
+    ref: lecture on Mobile Robot Kinematics powerpoint
+    """
+    def update_odometry(self):
+        dt = self.stopwatch.time() / 1000.0 # get deltaTime in sec
+        self.stopwatch.reset()              # Reset for next interval
+
+        if dt == 0:
+            return
+
+        # Get wheel angular velocities (deg/s)
+        omega_dot_L = self.left_motor.speed()
+        omega_dot_R = self.right_motor.speed()
+
+        # Calculate bot linear and angular velocities
+        v_x = self.wheel_radius * (omega_dot_R + omega_dot_L) / 2
+        self.omega_dot = self.wheel_radius * (omega_dot_R - omega_dot_L) / self.wheel_base
+
+        # Update world orientation
+        self.orientation += self.omega_dot * dt
+        self.orientation = self.normalize_angle(self.orientation)
+
+        # Calculate velocity in world frame
+        self.x_dot = v_x * math.cos(math.radians(self.orientation))
+        self.y_dot = v_x * math.sin(math.radians(self.orientation))
+
+        # Update world position
+        self.position[0] += self.x_dot * dt
+        self.position[1] += self.y_dot * dt
