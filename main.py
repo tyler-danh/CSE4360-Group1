@@ -1,9 +1,8 @@
 #!/usr/bin/env pybricks-micropython
 from pybricks.hubs import EV3Brick
-from pybricks.ev3devices import (Motor, TouchSensor, ColorSensor,
-                                 InfraredSensor, UltrasonicSensor, GyroSensor)
-from pybricks.parameters import Port, Stop, Direction, Button, Color
-from pybricks.tools import wait, StopWatch, DataLog
+from pybricks.ev3devices import (Motor)
+from pybricks.tools import StopWatch
+from pybricks.parameters import Port, Stop, Direction
 from pybricks.media.ev3dev import SoundFile, ImageFile
 
 from controller import Controller
@@ -22,43 +21,20 @@ ev3.screen.load_image(ImageFile.QUESTION_MARK)
 while not any(ev3.buttons.pressed()):
     wait(10)
 ev3.screen.clear()
-
-# Motor(port, positive_direction=Direction.CLOCKWISE, gears=None)
-motorRight = Motor(Port.A, positive_direction=Direction.CLOCKWISE, gears=None)
-motorLeft= Motor(Port.B, positive_direction=Direction.CLOCKWISE, gears=None)
-
-# Reset encoder
-motorRight.reset_angle(0)
-motorLeft.reset_angle(0)
-
-# run_time(speed, time, then=Stop.HOLD, wait=True) where speed(deg/s), time(ms)
-motorRight.run_time(360, 3000, then=Stop.HOLD, wait=False)
-motorLeft.run_time(360, 3000, then=Stop.HOLD, wait=True)
-
-# Reset encoder
-motorRight.reset_angle(0)
-motorLeft.reset_angle(0)
-
-# 90deg left turn
-motorRight.run_time(360, 1300, then=Stop.HOLD, wait=False)
-motorLeft.run_time(-360, 1300, then=Stop.HOLD, wait=True)
 """
-
 
 ## INIT CONTROLS ##
 wheel_base = 129.87     # AXEL(mm) from center of wheel to center of wheel
 wheel_radius = 25.8445  # RADIUS(mm) from (floor to top of wheel) / 2
+
+watch = StopWatch()
 
 # Motor(port, positive_direction=Direction.CLOCKWISE, gears=None)
 # CounterClockwise?
 motorRight = Motor(Port.A, positive_direction=Direction.CLOCKWISE, gears=None)
 motorLeft= Motor(Port.B, positive_direction=Direction.CLOCKWISE, gears=None)
 
-# Reset encoder. needed?
-motorRight.reset_angle(0)
-motorLeft.reset_angle(0)
-
-control = Controller(wheel_base, wheel_radius, motorLeft, motorRight)
+control = Controller(wheel_base, wheel_radius, watch, motorLeft, motorRight)
 
 
 ## CREATE PATH ##
@@ -68,7 +44,7 @@ control = Controller(wheel_base, wheel_radius, motorLeft, motorRight)
 
 # example path (a straight line)
 # 1000mm = 1m
-path = [(500,0,0)]
+path = [(500,0,90)]
 
 # example path (a square)
 # path = [(500,0,0), (500,0,90), (500,500,90), (500,500,180),
