@@ -4,27 +4,41 @@ import math
 Controls Differential Drive Robot (2 Tank Tracks with axel) from Lego EV3
 """
 class Controller:
-    def __init__(self, wheel_base, wheel_radius, watch, left_motor, right_motor):
+    def __init__(self, wheel_base, wheel_radius, watch, watch2, wait, left_motor, right_motor):
         self.wheel_base = wheel_base        # Distance between wheels (mm)
         self.wheel_radius = wheel_radius    # Radius of each wheel (mm)
         self.left_motor = left_motor        # Motor obj from Lego
         self.right_motor = right_motor      # Motor obj from Lego
         self.stopwatch = watch              # Stopwatch obj from Lego
+        self.stopwatch2 = watch2            # Stopwatch obj from Lego
+        self.wait = wait                    # wait function from Lego
 
-        self.Kp = 25.0                      # Proportional gain for tighter control
-        self.Kd = 10.0                      # Derivative gain for damping oscillations
+        self.Kp = 400.0                     # Proportional gain for tighter control
+        self.Kd = 40.0                      # Derivative gain for damping oscillations
+        #self.Kp = 250.0                    # Proportional gain for tighter control
+        #self.Kd = 31.62277                 # Derivative gain for damping oscillations
+        #self.Kp = 100.0                    # Proportional gain for tighter control
+        #self.Kd = 20.0                     # Derivative gain for damping oscillations
+        #self.Kp = 25.0                     # Proportional gain for tighter control
+        #self.Kd = 10.0                     # Derivative gain for damping oscillations
 
-        self.THRESHOLD_DIST = 1.0           # Distance(mm) Goal reached within Precision
-        self.THRESHOLD_ORIENT = 2.0         # Angle(deg) Goal reached within Precision
+        self.THRESHOLD_DIST = 10.0          # Distance(mm) Goal reached within Precision
+        self.THRESHOLD_ORIENT = 1.0         # Angle(deg) Goal reached within Precision
 
         self.MAX_SPEED = 730                # Motor MAX speed approx 730 deg/s (121.67 RPM)
         self.SET_SPEED = self.MAX_SPEED / 2 # Default speed with room for increase/decrease
-        self.MAX_DC = 100                   # MAX value for DC power input (%)
-        self.SET_DC = self.MAX_DC / 2       # Default power (%)
-        #self.SAMPLE_TIME = 100             # 1000ms per Sample (1 sec)
+        self.MAX_DC = 100                   # MAX value for DC power input (%) [-100,100]
+        self.SET_DC = self.MAX_DC / 4       # Default power (%). start slow
+        self.DEADZONE = 17                  # Apply MIN DC to range [-100,-20], [20,100]
+        self.SLOWDOWN_DIST = 200            # Distance to Goal (mm) to begin slowing
+        self.RAMP_DURATION = 1000           # at start of waypoint, ramp up speed over 1000ms
+        self.SPEED_FACTOR = 0.2             # initial speed factor (20% of full speed)
+        # scale min dc power to min speed
+        self.MIN_SPEED = (self.DEADZONE / self.MAX_DC) * self.MAX_SPEED
 
         self.prev_left = 0                  # previous left motor angle
         self.prev_right = 0                 # previous right motor angle
+        self.prev_error = 0                 # previous angle error
 
         self.dX = 0.0                       # delta world x_dot
         self.dY = 0.0                       # delta world y_dot
@@ -40,13 +54,18 @@ class Controller:
         for target_x, target_y, target_orient in path:
             target_orient = self.normalize_radians(math.radians(target_orient))
             self.resets()
-            print("Moving to: (x: {}mm, y: {}mm, ang: {}°)".format(target_x, target_y, math.degrees(target_orient)))
+            print("Moving to: (x: {:.2f}mm, y: {:.2f}mm, ang: {:.2f}°)".format(
+                target_x, target_y, math.degrees(target_orient)
+                ))
 
             # position control loop with goal
             print("Starting PD for position.")
             while not self.reached_target_pos(target_x, target_y):
                 self.update_odometry()                          # Get bot position, orientation
                 self.PDcontrol_position(target_x, target_y)     # Adjust bot position
+            
+            #print("Coasting...")
+            #self.wait(1000)                                    # wait 1 sec to allow settling
 
             # orientation control loop with goal
             print("Starting PD for orientation.")
@@ -54,7 +73,12 @@ class Controller:
                 self.update_odometry()                          # Get bot position, orientation
                 self.PDcontrol_orientation(target_orient)       # Adjust bot orientation
 
-            print("Finished: (x: {}mm, y: {}mm, ang: {}°)".format(
+            print("Braking...")
+            self.left_motor.hold()
+            self.right_motor.hold()
+            #self.wait(500)                                     # wait 1.5 sec to allow settling
+
+            print("Finished: (x: {:.2f}mm, y: {:.2f}mm, ang: {:.2f}°)".format(
                 self.position[0], self.position[1], math.degrees(self.orientation)
                 ))
         print("** Goal Reached **")
@@ -70,8 +94,10 @@ class Controller:
         self.right_motor.reset_angle(0)
         self.prev_left = 0
         self.prev_right = 0
+        self.prev_error = 0
 
         self.stopwatch.reset()                                  # Reset time interval
+        self.stopwatch2.reset()
         self.left_motor.dc(self.SET_DC)                         # Reset initial motor speed
         self.right_motor.dc(self.SET_DC)
     
@@ -85,7 +111,7 @@ class Controller:
 
     def reached_target_orient(self, target_orient):
         angle_diff = abs(self.normalize_radians(target_orient - self.orientation))
-        return angle_diff < self.THRESHOLD_ORIENT
+        return angle_diff < math.radians(self.THRESHOLD_ORIENT)
 
     """
     Normalized Angles: angles are in range [-180, 180] or [-PI, PI].
@@ -102,42 +128,78 @@ class Controller:
     """
     Scales motor speed range [-730, 730] to dc range [-100, 100]
     Also enforces pos/neg speed limits
+    Also allows optional deadzone around zero [-100,-20], [20,100]
     """
-    def getDC(self, speed):
+    def getDC(self, speed, deadzone=0):
         # Ensure motor speed is within the allowable range
         speed = max(min(speed, self.MAX_SPEED), -self.MAX_SPEED)
-        # Scale to dc
-        return (speed / self.MAX_SPEED) * self.MAX_DC
+        # Scale to DC %
+        scaled = (speed / self.MAX_SPEED) * self.MAX_DC
+        # optional deadzone
+        if abs(scaled) < deadzone:
+            # Scale deadzone up to min effective power
+            return 0 if scaled == 0 else deadzone * (1 if scaled > 0 else -1)
+        elif scaled >= deadzone:
+            return max(scaled, deadzone)
+        else:
+            return min(scaled, -deadzone)
 
     """
     https://www.youtube.com/watch?v=83r-Z9vMIiA
     """
     def PDcontrol_position(self, target_x, target_y):
-        # angular error
-        bot_to_target_orient = math.atan2(target_y - self.position[1], target_x - self.position[0])
-        error = self.normalize_radians(bot_to_target_orient - self.orientation)
+        # Calculate position error
+        dy = target_y - self.position[1]
+        dx = target_x - self.position[0]
+        dist_goal = math.sqrt(dx**2 + dy**2)
+        
+        # angular error - atan2
+        err_orient = math.atan2(dy, dx)
+        error = self.normalize_radians(err_orient - self.orientation)
 
-        # angular velocity error
+        # angular velocity error - derivative of atan2
         top1 = (self.position[0] - target_x) * self.dY
         top2 = (self.position[1] - target_y) * self.dX
         bot1 = (self.position[0] - target_x)**2
         bot2 = (self.position[1] - target_y)**2
-        bot_to_target_orient_dot = (top1 - top2) / (bot1 + bot2)
-        error_dot = bot_to_target_orient_dot - self.dO
+        err_orient_dot = (top1 - top2) / (bot1 + bot2)
+        error_dot = err_orient_dot - self.dO
+
+        #error_dot = error - self.prev_error
+        #self.prev_error = error
 
         # PD Control law
         angular_v = self.Kp * error + self.Kd * error_dot
 
-        # left: (v-w)/r
-        # right: (v+w)/r
-        left_speed = (self.SET_SPEED - angular_v * self.wheel_base / 2) / self.wheel_radius
-        right_speed = (self.SET_SPEED + angular_v * self.wheel_base / 2) / self.wheel_radius
+        # left: (v-w) / r
+        # right: (v+w) / r
+        left_speed = self.SET_SPEED - angular_v
+        right_speed = self.SET_SPEED + angular_v
+
+        # Apply initial speed ramp at start of waypoint
+        dt2 = self.stopwatch2.time()
+        if dt2 < self.RAMP_DURATION:
+            ramp_factor = self.SPEED_FACTOR + (1 - self.SPEED_FACTOR) * (dt2 / self.RAMP_DURATION)
+            left_speed *= ramp_factor
+            right_speed *= ramp_factor
+
+        # Apply slowdown factor if close to goal
+        if dist_goal < self.SLOWDOWN_DIST:
+            slowdown_factor = dist_goal / self.SLOWDOWN_DIST
+            slowdown_factor = max(slowdown_factor, self.MIN_SPEED / self.MAX_SPEED)
+            left_speed *= slowdown_factor
+            right_speed *= slowdown_factor
 
         # Scale to DC power (%)
-        left_dc = self.getDC(left_speed)
-        right_dc = self.getDC(right_speed)
+        left_dc = self.getDC(left_speed, self.DEADZONE)
+        right_dc = self.getDC(right_speed, self.DEADZONE)
+
         self.left_motor.dc(left_dc)
         self.right_motor.dc(right_dc)
+
+        #print("ang_v: {:.2f}, Spd(l/r): {:.2f}/{:.2f}, DC(l/r): {:.2f}/{:.2f}".format(
+        #    angular_v, left_speed, right_speed, left_dc, right_dc
+        #    ))
 
     def PDcontrol_orientation(self, target_orient):
         # simplified because only adjusting orientation
@@ -147,16 +209,19 @@ class Controller:
         # PD Control law
         angular_v = self.Kp * error + self.Kd * error_dot
 
-        # left: -w/r
-        # right: w/r
+        # left: -w / r
+        # right: w / r
         left_speed = -angular_v / self.wheel_radius
         right_speed = angular_v / self.wheel_radius
 
         # Scale to DC power (%)
-        left_dc = self.getDC(left_speed)
-        right_dc = self.getDC(right_speed)
+        left_dc = self.getDC(left_speed, self.DEADZONE)
+        right_dc = self.getDC(right_speed, self.DEADZONE)
         self.left_motor.dc(left_dc)
         self.right_motor.dc(right_dc)
+        #print("ang_v: {:.2f}, Spd(l/r): {:.2f}/{:.2f}, DC(l/r): {:.2f}/{:.2f}".format(
+        #       angular_v, left_speed,right_speed,left_dc,right_dc
+        #      ))
     
     """
     Odometry is where the bot thinks it is in the world from its sensors (encoder).
@@ -177,12 +242,13 @@ class Controller:
         self.prev_right = angle_right
         
         # OPTION2 = Get wheel angular velocities (deg/s) to rad/s
-        wL2 = math.radians(self.left_motor.speed())
-        wR2 = math.radians(self.right_motor.speed())
+        # likely less accurate than getting angle from encoder
+        # wL2 = math.radians(self.left_motor.speed())
+        # wR2 = math.radians(self.right_motor.speed())
 
-        print("speed(L/R): {:.2f}/{:.2f} \t\tspeedAngle: {:.2f}/{:.2f} \t\t\tdt: {:.4f} \t\t\tang(L/R): {:.2f}/{:.2f}".format(
-            wL2,wR2,wL,wR,dt,angle_left,angle_right
-            ))
+        #print("speed(L/R): {:.2f}/{:.2f} \t\tspeedAngle: {:.2f}/{:.2f} \t\t\tdt: {:.4f} \t\t\tang(L/R): {:.2f}/{:.2f}".format(
+        #    wL2,wR2,wL,wR,dt,angle_left,angle_right
+        #    ))
 
         v = (self.wheel_radius / 2) * (wR + wL)                             # Linear velocity (mm/s)
         w = (self.wheel_radius / self.wheel_base) * (wR - wL)               # Angular velocity (rad/s)
@@ -202,6 +268,6 @@ class Controller:
 
         self.orientation = self.normalize_radians(self.orientation)         # normalize to [-PI, PI]
 
-        print("v(x,y): {:.2f},{:.2f} \t\t\torient(O): {:.2f} \t\t\t\tpos(x,y): {:.2f},{:.2f}\n".format(
-            self.dX,self.dY,self.orientation,self.position[0],self.position[1]
-            ))
+        #print("v(x,y): {:.2f},{:.2f} \t\t\torient(O): {:.2f}° \t\t\t\tpos(x,y): {:.2f},{:.2f}\n".format(
+        #    self.dX,self.dY,math.degrees(self.orientation),self.position[0],self.position[1]
+        #    ))
