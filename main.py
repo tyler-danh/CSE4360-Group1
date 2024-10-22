@@ -3,6 +3,7 @@ from pybricks.hubs import EV3Brick
 from pybricks.ev3devices import (Motor)
 from pybricks.tools import StopWatch
 from pybricks.parameters import Port, Direction
+from pybricks.media.ev3dev import SoundFile
 import pathfinder3
 
 #from controller import Controller
@@ -13,7 +14,7 @@ from simple_controller import Controller
 
 # Init and beep when ready.
 ev3 = EV3Brick()
-ev3.speaker.beep()
+ev3.speaker.play_file(SoundFile.MOTOR_START)
 
 ## INIT CONTROLS ##
 wheel_base = 110.7186       # AXEL(mm) from center of wheel to center of wheel
@@ -41,4 +42,4 @@ simple_control = Controller(wheel_base, wheel_radius, watch, motorLeft, motorRig
 
 ## EXECUTE ##
 simple_control.follow_path(pathfinder3.search())
-ev3.speaker.beep()
+ev3.speaker.play_file(SoundFile.HORN_1)
