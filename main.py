@@ -4,6 +4,7 @@ from pybricks.ev3devices import (Motor)
 from pybricks.tools import StopWatch
 from pybricks.parameters import Port, Direction
 from pybricks.media.ev3dev import ImageFile
+import pathfinder3
 
 #from controller import Controller
 from simple_controller import Controller
@@ -50,5 +51,5 @@ control = Controller(wheel_base, wheel_radius, watch, motorLeft, motorRight)
 path = [(360, -90)]
 
 ## EXECUTE ##
-control.follow_path(path)
+control.follow_path(pathfinder3.search())
 ev3.speaker.beep()
