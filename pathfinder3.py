@@ -114,7 +114,7 @@ def pathfind(map, start, goal):
 
 def print_map(map):
     for row in map:
-        print(' '.join(f'{cell}' for cell in row))
+        print(' '.join('{}'.format(cell) for cell in row))
 
 def add_path(path,map):
     for item in path:
