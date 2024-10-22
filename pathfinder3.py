@@ -129,44 +129,11 @@ def map_gen(obstical_locations):
 
     return(map)
 
-    
 
-def main():
-    this_obsticals = [(1,3),(2,3),(3,3),(4,8),(6,5),(7,5)]
-
-    assgn_obsticals = [(0.61,2.743),(0.915,2.743),(1.219,2.743),(1.829,1.219),
-        (1.829,1.524),(1.829,1.829), (1.829,2.134),(2.743,0.305),
-        (2.743,0.61),(2.743,0.915),(2.743,2.743),(3.048,2.743),
-        (3.353,2.743)]
-
-    new_obsticals = []
-    for item in assgn_obsticals:
-        new_obsticals.append((round(item[0] * 3.2804),round(item[1] * 3.2804)))
-
-
-
-    start = (1,8)
-    goal = (9,3)
-    
-    new_map = map_gen(this_obsticals)
-
-    print('\n')
-
-    print_map(new_map)
-
-    print("\nStarting pathfinding...\n")
-
-    path = pathfind(new_map, start, goal)
-
-    print("Path found: \n", path, '\n')
-
-    add_path(path, new_map)
-
-    print_map(new_map)
-    
-    current_orientation = 0
-
+def path_clean_for_input(path):
     movement_angles = []
+    target_orientation = 0
+    current_orientation = 0
 
 # creates turn angles 
     for i in range(len(path) - 1):
@@ -175,22 +142,17 @@ def main():
         y1 = path[i][1]
         y2 = path[i+1][1]
 
-        target_orientation  = 0
-
         x_tot = x2 - x1 
-        y_tot = y2 - y1 
-
-        # print(x2 - x1 , y2 - y1)
-       
+        y_tot = y2 - y1        
 
         if x_tot == 1 and y_tot == 1 :
-            target_orientation = 40
+            target_orientation = 315 
         if x_tot == 1 and y_tot == 0:
             target_orientation = 0
         if x_tot == 1 and y_tot == -1:
-            target_orientation = -45
+            target_orientation = 45
         if x_tot == 0 and y_tot == 1:
-            target_orientation = -90
+            target_orientation = 270
         if x_tot == 0 and y_tot == -1:
             target_orientation = 90
         if x_tot == -1 and y_tot == 1:
@@ -198,20 +160,19 @@ def main():
         if x_tot == -1 and y_tot == 0:
             target_orientation = 180
         if x_tot == -1 and y_tot == -1:
-            target_orientation = 135
+            target_orientation = 225
         if current_orientation != target_orientation:    
 
             move_required = target_orientation - current_orientation
-            # print('move req:',move_required)
             current_orientation = target_orientation
-            movement_angles.append(current_orientation)
+            movement_angles.append(move_required)
+        else:
+            movement_angles.append(0)
 
-
-        movement_angles.append(current_orientation)
-
-        # print('new angle',current_orientation)
-
+    movement_angles.append(0)
     # print(movement_angles)
+
+
 
 
 # converts path from ft -> mm and adds turn angle 
@@ -220,17 +181,85 @@ def main():
     count = 0
     for item in path:
 
-        final_path.append(((item[0] * 310),(9*310) - (item[1] * 310)))
+        final_path.append(((item[0] * 310),(9*310) - (item[1] * 310), movement_angles[count]))
+        count+= 1 
     
-    print("\nPath for input: \n")   
-    print(final_path)
-    print('\n')
+    # print("\nPath for input: \n")   
+    # print(final_path)
+    # print('\n')
 
-    last_path= []
-    prev_x = final_path[0][0]
-    prev_y = final_path[0][1]
+    last_path = []
+    first_x = final_path[0][0]
+    first_y = final_path[0][1]
 
+
+    for i in range(len(final_path) - 1):
+        x1 = final_path[i][0]
+        y1 = final_path[i][1]
+        deg = final_path[i][2]
+        x2 = final_path[i+1][0]
+        y2 = final_path[i+1][1]
+        deg2 = final_path[i+1][2]
+
+        if final_path[i+1][2] != 0 and x2 > x1:
+
+            last_path.append((x2 - first_x, deg2))
+            first_x = x2
+        elif final_path[i+1][2] != 0 and y2 > y1:
+           
+            last_path.append((y2 - first_y, deg2))
+            first_y = y2
+        elif i+1 == len(final_path) - 1:
+
+            if x2 > first_x:
+                last_path.append((x2-first_x,0))
+            if y2 > first_y:
+                last_path.append((y2-first_y,0)) 
+
+    return last_path
+    
+
+def search():
+    
+    
+    obsticals = [(1,1),(1,2),(2,2),(2,3)]
+    start = (1,8)
+    goal = (9,3)
+    
+    
+    # assgn_obsticals = []
+    # new_obsticals = []
+    # for item in assgn_obsticals:
+    #     new_obsticals.append((round(item[0] * 3.2804),round(item[1] * 3.2804)))
+
+
+
+   
+    
+    new_map = map_gen(obsticals)
+
+    print('\nMap before Pathfinding \n')
+
+    print_map(new_map)
+
+    # print("\nStarting pathfinding...\n")
+
+    path = pathfind(new_map, start, goal)
+
+    # print("Path found: \n", path, '\n')
+
+    add_path(path, new_map)
+
+    print('\nMap after Pathfinding \n')
+
+    print_map(new_map)
+
+    final_path = path_clean_for_input(path)
+
+    print('\nfinal path for input\n', final_path)
+
+    return final_path
      
 if __name__ == '__main__':
-    main()
+    search()
 
