@@ -13,7 +13,8 @@ class Controller:
         self.stopwatch = watch              # Stopwatch obj from Lego
 
         self.THRESHOLD_DIST = 10.0          # Distance(mm) Goal reached within Precision
-        self.THRESHOLD_ORIENT = 5.0         # Angle(deg) Goal reached within Precision
+        self.THRESHOLD_ORIENT = 1.0         # Angle(deg) Goal reached within Precision
+        self.OFFSET = 10.0                  # Calibration offset for over/under shooting turns
 
         self.MAX_SPEED = 730                # Motor MAX speed approx 730 deg/s (121.67 RPM)
         self.SET_SPEED = self.MAX_SPEED / 4 # Default speed
@@ -32,8 +33,14 @@ class Controller:
     """
     def follow_path(self, path):
         # loop through each waypoint in the path
+        print("\nStarting Controller...")
         for target_distance, target_orient in path:
             target_orient = self.normalize_radians(math.radians(target_orient))
+            if(target_orient > 0):
+                target_orient -= math.radians(self.OFFSET)
+            else:
+                target_orient += math.radians(self.OFFSET)
+                
             self.resets()
             print("Move: (distance: {:.2f}mm, ang: {:.2f}°)".format(target_distance, math.degrees(target_orient)))
 
@@ -57,23 +64,16 @@ class Controller:
 
                 # feedback
                 relative_angle = self.normalize_radians(target_orient - self.orientation)
-                # Only apply correction if angle is large enough to warrant a turn
-                # correction factor to compensate for over/under shoot
-                # reduce below 1 for overshoot, increase over 1 for under
-                #if abs(relative_angle) > math.radians(self.THRESHOLD_ORIENT):
-                #    correction_factor = 0.88                    # change angle by %
-                #    relative_angle *= correction_factor
-
                 rotation_degrees = self.calculate_rotation_angle(relative_angle)
                 # because of motor setup. switch -rotate to left motor
                 # if bot is rotating 270 in both directions then switch -rotate to right motor
-                self.left_motor.run_angle(self.MIN_SPEED/3, -rotation_degrees, then=Stop.HOLD, wait=False)
-                self.right_motor.run_angle(self.MIN_SPEED/3, rotation_degrees, then=Stop.HOLD, wait=True)
+                self.left_motor.run_angle(self.MIN_SPEED, -rotation_degrees, then=Stop.HOLD, wait=False)
+                self.right_motor.run_angle(self.MIN_SPEED, rotation_degrees, then=Stop.HOLD, wait=True)
 
             print("Finished: (distance: {:.2f}mm, ang: {:.2f}°)".format(
                 self.current_dist, math.degrees(self.orientation)
                 ))
-        print("** Goal Reached **")
+        print("** Goal Reached **\n")
 
     def resets(self):
         self.dX = 0.0                                           # Reset globals
