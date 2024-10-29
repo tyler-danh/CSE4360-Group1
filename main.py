@@ -1,13 +1,14 @@
 #!/usr/bin/env pybricks-micropython
 from pybricks.hubs import EV3Brick
-from pybricks.ev3devices import (Motor)
+from pybricks.ev3devices import Motor, UltrasonicSensor, GyroSensor, ColorSensor
 from pybricks.tools import StopWatch
-from pybricks.parameters import Port, Direction
+from pybricks.parameters import Port, Direction, Color
 from pybricks.media.ev3dev import SoundFile
 import pathfinder3
 
 #from controller import Controller
 from simple_controller import Controller
+from little_explorer import Explorer
 
 # This program requires LEGO EV3 MicroPython v2.0 or higher.
 # Click "Open user guide" on the EV3 extension tab for more information.
@@ -22,11 +23,37 @@ wheel_radius = 34.7218      # RADIUS(mm) from (floor to top of wheel) / 2
 
 watch = StopWatch()
 
-motorRight = Motor(Port.A, positive_direction=Direction.CLOCKWISE, gears=None)
-motorLeft= Motor(Port.D, positive_direction=Direction.CLOCKWISE, gears=None)
+gyro = GyroSensor(Port.S2, Direction.COUNTERCLOCKWISE)
+print("gyro in")
+ultrasonic = UltrasonicSensor(Port.S1)
+print("ultrasonic in")
+colors = ColorSensor(Port.S3)
+print("color sensor in")
+
+fan_motor = Motor(Port.D, positive_direction = Direction.COUNTERCLOCKWISE, gears=None)
+
+#gyro.reset_angle(0)
+while True:
+    # angle = gyro.angle()
+    # if angle == 90 or angle == -90:
+    #     gyro.reset_angle(0)
+    #     print("reset angle")
+    # print(angle)
+
+    # color = colors.color()
+    # if color != Color.BLACK:
+    #     print(color)
+    fan_motor.dc(100)
+
+
+
+
+
+#motorRight = Motor(Port.A, positive_direction=Direction.CLOCKWISE, gears=None)
+#motorLeft= Motor(Port.D, positive_direction=Direction.CLOCKWISE, gears=None)
 
 #control = Controller(wheel_base, wheel_radius, watch, watch2, wait, motorLeft, motorRight)
-simple_control = Controller(wheel_base, wheel_radius, watch, motorLeft, motorRight)
+#simple_control = Controller(wheel_base, wheel_radius, watch, motorLeft, motorRight)
 
 ## CREATE PATH ##
 # list of waypoints [(dist,angle), (dist,angle), ...]
@@ -41,5 +68,5 @@ simple_control = Controller(wheel_base, wheel_radius, watch, motorLeft, motorRig
 #path = [(450, -90), (450,-90), (450,-90), (450,-90)]
 
 ## EXECUTE ##
-simple_control.follow_path(pathfinder3.search())
+#simple_control.follow_path(pathfinder3.search())
 ev3.speaker.play_file(SoundFile.HORN_1)
