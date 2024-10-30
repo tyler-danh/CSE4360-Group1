@@ -1,16 +1,19 @@
+from pybricks.parameters import Color
+from pybricks.media.ev3dev import SoundFile
 class Explorer:
-    def __init__(self, ev3, left_motor, right_motor, gyroscrope, ultrasonic, axel_length, wheel_radiius, wait):
+    def __init__(self, ev3, left_motor, right_motor, gyroscrope, ultrasonic, colorsensor, axel_length, wheel_radiius, wait):
         self.ev3 = ev3
         self.left_motor = left_motor
         self.right_motor = right_motor
         self.gyroscrope = gyroscope
         self.supersonic = supersonic
+        self.colorsensor = colorsensor
         self.axel_lengh = axel_length
         self.wheel_radius = wheel_radius
 
-        self.DISTANCE_THRESHOLD = 300 #distance threshold for obstacles in mm
-        self.MOVE_SPEED = 300 #mm per sec
-        self.TURN_SPEED = 100 #degress per sec
+        self.DISTANCE_THRESHOLD = 100 #distance threshold for obstacles in mm
+        self.MOVE_POWER = 70 #70% power
+        self.TURN_POWER = 50 #50% power
 
 
     def stop(self):
@@ -19,17 +22,22 @@ class Explorer:
 
     def turn(self, angle):
         self.gyroscope.reset_angle(0)
+        current_angle = 0
         if angle > 0:
-            self.left_motor.run(-TURN_SPEED)
-            self.right_motor.run(TURN_SPEED)
+            while current_angle != angle:
+                current_angle = self.gyroscope.angle()
+                self.left_motor.dc(MOVE_POWER)
+                self.right_motor.dc(MOVE_POWER)
         else:
-            self.left_motor.run(TURN_SPEED)
-            self.right_motor.run(-TURN_SPEED)
+            while current_angle != angle:
+                current_angle = self.gyroscope.angle()
+                self.left_motor.dc(MOVE_POWER)
+                self.right_motor.dc(-MOVE_POWER)
 
     def explore(self):
         while True:
-            self.left_motor(MOVE_SPEED)
-            self.right_motor(MOVE_SPEED)
+            self.left_motor(MOVE_POWER)
+            self.right_motor(MOVE_POWER)
 
             if self.ultrasonic.distance() < DISTANCE_THRESHOLD:
                 stop()
@@ -43,10 +51,14 @@ class Explorer:
                     conitnue
                 #both directions blocked?
                 turn(45)
-                self.left_motor.run(-MOVE_SPEED)
-                self.right_motor.run(-MOVE_SPEED)
+                self.left_motor.run(-MOVE_POWER)
+                self.right_motor.run(-MOVE_POWER)
                 self.wait(1000) #move backwards for 10 secs
                 stop()
+            if self.colorsensor.color() == Color.RED:
+                stop()
+                self.ev3.speaker.play_file(SoundFile.OKEY_DOKEY)
+                return False
 
 
     
