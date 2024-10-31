@@ -29,6 +29,7 @@ ultrasonic = UltrasonicSensor(Port.S1)
 print("ultrasonic in")
 colors = ColorSensor(Port.S3)
 print("color sensor in")
+#ultrasonic2 = UltrasonicSensor(Port.S4)
 touch = TouchSensor(Port.S4)
 
 left_motor = Motor(Port.D, positive_direction=Direction.CLOCKWISE, gears=None)
