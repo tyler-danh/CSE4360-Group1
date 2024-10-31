@@ -1,6 +1,6 @@
 #!/usr/bin/env pybricks-micropython
 from pybricks.hubs import EV3Brick
-from pybricks.ev3devices import Motor, UltrasonicSensor, GyroSensor, ColorSensor
+from pybricks.ev3devices import Motor, UltrasonicSensor, GyroSensor, ColorSensor, TouchSensor
 from pybricks.tools import StopWatch
 from pybricks.parameters import Port, Direction, Color
 from pybricks.media.ev3dev import SoundFile
@@ -29,25 +29,29 @@ ultrasonic = UltrasonicSensor(Port.S1)
 print("ultrasonic in")
 colors = ColorSensor(Port.S3)
 print("color sensor in")
+touch = TouchSensor(Port.S4)
 
-fan_motor = Motor(Port.D, positive_direction = Direction.COUNTERCLOCKWISE, gears=None)
+left_motor = Motor(Port.D, positive_direction=Direction.CLOCKWISE, gears=None)
+right_motor = Motor(Port.C, positive_direction=Direction.CLOCKWISE, gears=None)
 
 #gyro.reset_angle(0)
-while True:
-    # angle = gyro.angle()
-    # if angle == 90 or angle == -90:
-    #     gyro.reset_angle(0)
-    #     print("reset angle")
-    # print(angle)
+# while ultrasonic.distance() > 150:
+#     # angle = gyro.angle()
+#     # if angle == 90 or angle == -90:
+#     #     gyro.reset_angle(0)
+#     #     print("reset angle")
+#     # print(angle)
 
-    # color = colors.color()
-    # if color != Color.BLACK:
-    #     print(color)
-    fan_motor.dc(100)
+#     # color = colors.color()
+#     # if color != Color.BLACK:
+#     #     print(color)
+#     print(ultrasonic.distance())
+#     left_motor.dc(50)
+#     right_motor.dc(50)
 
+explorer = Explorer(ev3, left_motor, right_motor, gyro, ultrasonic, colors, touch)
 
-
-
+explorer.explore()
 
 #motorRight = Motor(Port.A, positive_direction=Direction.CLOCKWISE, gears=None)
 #motorLeft= Motor(Port.D, positive_direction=Direction.CLOCKWISE, gears=None)

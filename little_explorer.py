@@ -1,18 +1,19 @@
-from pybricks.parameters import Color
+from pybricks.parameters import Color, Stop
 from pybricks.media.ev3dev import SoundFile
+from pybricks.ev3devices import Motor, UltrasonicSensor, GyroSensor, ColorSensor, TouchSensor
+from pybricks.tools import wait
 class Explorer:
-    def __init__(self, ev3, left_motor, right_motor, gyroscrope, ultrasonic, colorsensor, axel_length, wheel_radiius, wait):
+    def __init__(self, ev3, left_motor, right_motor, gyroscope, ultrasonic, colorSensor, touch):
         self.ev3 = ev3
         self.left_motor = left_motor
         self.right_motor = right_motor
-        self.gyroscrope = gyroscope
-        self.supersonic = supersonic
-        self.colorsensor = colorsensor
-        self.axel_lengh = axel_length
-        self.wheel_radius = wheel_radius
+        self.gyroscope = gyroscope
+        self.supersonic = ultrasonic
+        self.colorsensor = colorSensor
+        self.touch = touch
 
-        self.DISTANCE_THRESHOLD = 100 #distance threshold for obstacles in mm
-        self.MOVE_POWER = 70 #70% power
+        self.DISTANCE_THRESHOLD = 145 #distance threshold for obstacles in mm
+        self.MOVE_POWER = 300 #70% power
         self.TURN_POWER = 50 #50% power
 
 
@@ -26,39 +27,33 @@ class Explorer:
         if angle > 0:
             while current_angle != angle:
                 current_angle = self.gyroscope.angle()
-                self.left_motor.dc(MOVE_POWER)
-                self.right_motor.dc(MOVE_POWER)
+                self.left_motor.run(-self.MOVE_POWER)
+                self.right_motor.run(self.MOVE_POWER)
+                self.stop()
         else:
             while current_angle != angle:
                 current_angle = self.gyroscope.angle()
-                self.left_motor.dc(MOVE_POWER)
-                self.right_motor.dc(-MOVE_POWER)
+                self.left_motor.run(self.MOVE_POWER)
+                self.right_motor.run(-self.MOVE_POWER)
+                self.stop()
 
     def explore(self):
+        print("hello")
         while True:
-            self.left_motor(MOVE_POWER)
-            self.right_motor(MOVE_POWER)
-
-            if self.ultrasonic.distance() < DISTANCE_THRESHOLD:
-                stop()
-                self.ev3.speaker.beep() #obstacle detected
-
-                turn(45)
-                if self.ultrasonic.distance() > DISTANCE_THRESHOLD:
-                    continue
-                turn(-180)
-                if self.ultrasonic.distance() > DISTANCE_THRESHOLD:
-                    conitnue
-                #both directions blocked?
-                turn(45)
-                self.left_motor.run(-MOVE_POWER)
-                self.right_motor.run(-MOVE_POWER)
-                self.wait(1000) #move backwards for 10 secs
-                stop()
+            self.left_motor.run(self.MOVE_POWER)
+            self.right_motor.run(self.MOVE_POWER)
+            if self.touch.pressed():
+                print("i am pressed")
+                self.stop()
+                wait(500)
+                self.left_motor.run(-self.MOVE_POWER)
+                self.right_motor.run(-self.MOVE_POWER)
+                wait(1000)
+                self.turn(90)
+                print("turning")
+            # if self.supersonic.distance() > self.DISTANCE_THRESHOLD:
+            #     self.turn(-90)
             if self.colorsensor.color() == Color.RED:
-                stop()
+                self.stop()
                 self.ev3.speaker.play_file(SoundFile.OKEY_DOKEY)
-                return False
-
-
-    
+                return False    
