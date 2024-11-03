@@ -58,7 +58,6 @@ class Explorer:
         print("obstacle detected")
         self.ev3.speaker.play_file(SoundFile.OKEY_DOKEY)
         self.stop()
-        wait(500)
         self.left_motor.run(-self.MOVE_POWER)
         self.right_motor.run(-self.MOVE_POWER)
         wait(500)
@@ -79,6 +78,11 @@ class Explorer:
             self.right_motor.run(self.MOVE_POWER)
             if check_goal() == False:
                 return
+            if self.touch.pressed():
+                self.current_state = State.WALL_FOLLOWING
+                self.obstacle()
+                self.stopwatch.reset()
+                return
             time = self.stopwatch.time()
 
         self.stop()
@@ -91,6 +95,11 @@ class Explorer:
             self.left_motor.run(self.MOVE_POWER)
             self.right_motor.run(self.MOVE_POWER)
             if check_goal() == False:
+                return
+            if self.touch.pressed():
+                self.current_state = State.WALL_FOLLOWING
+                self.obstacle()
+                self.stopwatch.reset()
                 return
             time = self.stopwatch.time()
 
@@ -144,6 +153,10 @@ class Explorer:
                 wall_distance = self.supersonic.distance()
                 if wall_distance > self.DISTANCE_THRESHOLD:
                     self.current_state = State.WANDERING
+                elif self.touch.pressed():
+                    self.current_state = State.WALL_FOLLOWING
+                    self.obstacle()
+                    self.stopwatch.reset()
                 elif self.stopwatch.time() > self.FOLLOW_TIME:
                     self.current_state = State.WANDERING
                     self.wander()
