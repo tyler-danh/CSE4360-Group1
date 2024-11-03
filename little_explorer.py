@@ -71,16 +71,33 @@ class Explorer:
         self.stop()
         self.turn(45)
         wait(500)
-        self.left_motor.run(self.MOVE_POWER)
-        self.right_motor.run(self.MOVE_POWER)
-        wait(2000)
+
+        time = 0
+        self.stopwatch.reset()
+        while(time < 2000):
+            self.left_motor.run(self.MOVE_POWER)
+            self.right_motor.run(self.MOVE_POWER)
+            if check_goal() == False:
+                return
+            time = self.stopwatch.time()
+
         self.stop()
         self.turn(-135)
+        wait(1000)
+
+        time = 0
+        self.stopwatch.reset()
+        while(time < 2000):
+            self.left_motor.run(self.MOVE_POWER)
+            self.right_motor.run(self.MOVE_POWER)
+            if check_goal() == False:
+                return
+            time = self.stopwatch.time()
 
     def wall_follow(self, wall_distance):
         # simple error correction
         error = wall_distance - self.DISTANCE_FOLLOW
-        correction = error * 2
+        correction = error * 0.5
 
         # Ensure speed is (MIN < speed < MAX)
         left_speed = max(min(self.MOVE_POWER + correction, self.MAX_SPEED), -self.MAX_SPEED)
@@ -90,12 +107,18 @@ class Explorer:
         self.left_motor.run(left_speed)
         self.right_motor.run(right_speed)
 
+    def check_goal(self):
+        if self.colorsensor.color() == Color.RED:
+            return False
+        else:
+            return True
+
     def explore(self):
         print("hello")
         self.stopwatch.reset()
         while True:
             # goal reached?
-            if self.colorsensor.color() == Color.RED:
+            if check_goal() == False:
                 self.stop()
                 self.ev3.speaker.play_file(SoundFile.OKEY_DOKEY)
                 return False
