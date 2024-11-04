@@ -2,14 +2,12 @@ from pybricks.parameters import Color, Stop
 from pybricks.media.ev3dev import SoundFile
 from pybricks.ev3devices import Motor, UltrasonicSensor, GyroSensor, ColorSensor, TouchSensor
 from pybricks.tools import wait
-# from enum import Enum, auto
 
 # states of robot
-# auto() handles int assignment automatically
 class State:
     def _init_(self):
-        self.WANDERING = 1 #auto()
-        self.WALL_FOLLOWING = 2 #auto()
+        self.WANDERING = 1
+        self.WALL_FOLLOWING = 2
 
 class Explorer:
     def __init__(self, ev3, left_motor, right_motor, gyroscope, ultrasonic, colorSensor, touch, watch):
@@ -30,7 +28,7 @@ class Explorer:
         self.MOVE_POWER_1 = 150         # 70% power?
         self.TURN_POWER = 50            # 50% power?
 
-        self.current_state = 1
+        self.current_state = State.WANDERING
 
 
     def stop(self):
@@ -68,7 +66,7 @@ class Explorer:
             self.left_motor.run(self.MOVE_POWER_1)
             self.right_motor.run(self.MOVE_POWER_1)
             if self.touch.pressed():
-                self.current_state = 2
+                self.current_state = State.WALL_FOLLOWING
                 self.obstacle()
                 self.stopwatch.reset()
                 continue
@@ -86,7 +84,7 @@ class Explorer:
         self.stop()
         wait(500)
         self.turn(60)
-        self.current_state = 2
+        self.current_state = State.WALL_FOLLOWING
 
         # print(self.supersonic.distance())
         # if self.supersonic.distance() >= self.DISTANCE_THRESHOLD:
@@ -115,7 +113,7 @@ class Explorer:
             if self.check_goal() == False:
                 return
             if self.touch.pressed():
-                self.current_state = 2
+                self.current_state = State.WALL_FOLLOWING
                 self.obstacle()
                 self.stopwatch.reset()
                 return
@@ -133,7 +131,7 @@ class Explorer:
             if self.check_goal() == False:
                 return
             if self.touch.pressed():
-                self.current_state = 2
+                self.current_state = State.WALL_FOLLOWING
                 self.obstacle()
                 self.stopwatch.reset()
                 return
@@ -154,11 +152,9 @@ class Explorer:
         self.right_motor.run(right_speed)
 
     def explore(self):
-        print("hello")
         self.stopwatch.reset()
         while True:
             # goal reached?
-            
             if self.check_goal() == False:
                 self.stop()
                 self.ev3.speaker.play_file(SoundFile.OKEY_DOKEY)
@@ -170,19 +166,19 @@ class Explorer:
             
             # State machine
             # WALL_FOLLOW if touch or close to wall
-            if self.current_state == 1:
+            if self.current_state == State.WANDERING:
                 # print("state 1")
                 if self.supersonic.distance() <= self.DISTANCE_THRESHOLD:
-                    self.current_state = 2
+                    self.current_state = State.WALL_FOLLOWING
                     self.stopwatch.reset()
                 elif self.touch.pressed():
-                    self.current_state = 2
+                    self.current_state = State.WALL_FOLLOWING
                     self.obstacle()
                     self.stopwatch.reset()
                 else:
                     self.wander()
             # WANDER if NOT close to wall or follow timer expired
-            elif self.current_state == 2:
+            elif self.current_state == State.WALL_FOLLOWING:
                 # print("state 2")
                 wall_distance = self.supersonic.distance()
                 if wall_distance > self.DISTANCE_THRESHOLD:
@@ -193,13 +189,13 @@ class Explorer:
                     if wall_distance > self.DISTANCE_THRESHOLD:
                         self.turn(-60)
                         self.drive_forward()                              
-                    self.current_state = 1
+                    self.current_state = State.WANDERING
                 elif self.touch.pressed():
-                    self.current_state = 2
+                    self.current_state = State.WALL_FOLLOWING
                     self.obstacle()
                     self.stopwatch.reset()
                 elif self.stopwatch.time() > self.FOLLOW_TIME:
-                    self.current_state = 1
+                    self.current_state = State.WANDERING
                     self.wander()
                 else:
                     self.wall_follow(wall_distance)
