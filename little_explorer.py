@@ -5,10 +5,11 @@ from pybricks.tools import wait
 import sys
 
 # states of robot
+
+
 class State:
-    def _init_(self):
-        self.WANDERING = 1
-        self.WALL_FOLLOWING = 2
+       WANDERING = 1
+       WALL_FOLLOWING = 2
 
 class Explorer:
     def __init__(self, ev3, left_motor, right_motor,shovel_motor, gyroscope, ultrasonic, colorSensor, touch, watch):
@@ -22,11 +23,11 @@ class Explorer:
         self.stopwatch = watch
 
         self.FOLLOW_TIME = 8000         # wall following timer (ms)
-        self.DISTANCE_THRESHOLD = 100   # wander / follow threshold (mm)
+        self.DISTANCE_THRESHOLD = 120   # wander / follow threshold (mm)
         self.DISTANCE_FOLLOW = 60       # wall following distance (mm)
         self.MAX_POWER = 300 
-        self.MOVE_POWER = 150
-
+        self.MOVE_POWER = 175
+        self.shovel_motor = shovel_motor
         self.current_state = State.WANDERING
 
     def stop(self):
@@ -53,8 +54,8 @@ class Explorer:
 
             # fan smash pattern \|/
             self.stop()
-            self.left_motor.run(self.MOVE_POWER)
-            self.right_motor.run(self.MOVE_POWER)
+            self.left_motor.run(50)
+            self.right_motor.run(50)
             wait(1000)
             self.smash_it()
 
@@ -70,24 +71,34 @@ class Explorer:
         print("turning: {:.2f}".format(angle))
         self.gyroscope.reset_angle(0)
         current_angle = 0
+      
         if angle > 0:
             #print("left")
             while current_angle <= angle:
                 self.left_motor.run(-self.MOVE_POWER )
                 self.right_motor.run(self.MOVE_POWER )
                 current_angle = self.gyroscope.angle()
+                if self.touch.pressed():
+                    self.left_motor.run(-self.MOVE_POWER)
+                    self.right_motor.run(-self.MOVE_POWER)
+                    wait(500)
                 #print(current_angle)
         else:
             #print("right")
-            while current_angle >= angle:
+            while current_angle >= angle :
                 self.left_motor.run(self.MOVE_POWER)
                 self.right_motor.run(-self.MOVE_POWER)
                 current_angle = self.gyroscope.angle()
+                if self.touch.pressed():
+                    self.left_motor.run(-self.MOVE_POWER)
+                    self.right_motor.run(-self.MOVE_POWER)
+                    wait(500)
                 #print(current_angle)
         self.stop()
 
     # move forward with goal and touch checks
     def drive_forward(self, drive_time):
+        print("Im driving forward")
         time = 0
         self.stopwatch.reset()
         while(time < drive_time):
@@ -98,8 +109,9 @@ class Explorer:
                 self.current_state = State.WALL_FOLLOWING
                 self.obstacle()
                 self.stopwatch.reset()
-                return
+                return False
             time = self.stopwatch.time()
+        return True
         
     # reset after hitting obstacle
     def obstacle(self):
@@ -111,6 +123,7 @@ class Explorer:
         wait(1000)
         self.stop()
         self.turn(80)
+        
 
     # sawtooth wander pattern __/|__/|__
     def wander(self):
@@ -118,10 +131,13 @@ class Explorer:
         self.ev3.speaker.play_file(SoundFile.HORN_2)
         self.stop()
         self.turn(45)
-        self.drive_forward(3500)
+        if self.drive_forward(3500) == False:
+            return 
         self.stop()
+        print("Im turning right from wandering")
         self.turn(-90)
-        self.drive_forward(2500)
+        if self.drive_forward(2500) == False:
+            return
 
     # wall follow at specific distance from wall
     def wall_follow(self, wall_distance):
@@ -129,11 +145,13 @@ class Explorer:
         
         # simple error correction
         error = wall_distance - self.DISTANCE_FOLLOW
-        correction = error * 10
+        correction = error * 20
         # Ensure speed is (MIN < speed < MAX)
+
         left_speed = max(min(self.MOVE_POWER + correction, self.MAX_POWER), -self.MAX_POWER)  #+ 25
         right_speed = max(min(self.MOVE_POWER - correction, self.MAX_POWER), -self.MAX_POWER)
         # Adjust motors to maintain consistent wall distance
+
         self.left_motor.run(left_speed)
         self.right_motor.run(right_speed)
 
@@ -161,16 +179,19 @@ class Explorer:
                 else:
                     self.wander()
             # WANDER if NOT close to wall or follow timer expired
-            elif self.current_state == State.WALL_FOLLOWING:
+            elif self.current_state == State.WALL_FOLLOWING:                
                 print("we are wall following")
                 wall_distance = self.supersonic.distance()
                 if wall_distance > self.DISTANCE_THRESHOLD:
                     print("we passed the wall")
                     # this turns us too the right when the wall ends
                     # and drives us forward
-                    self.turn(-90)
+
+                #no effect on double right on no collision     
+                    self.turn(-70)
                     self.drive_forward(3500) #3500 ~ 1 square
-                    self.turn(-90)                 
+                    self.turn(-70)                 
+
                     self.current_state = State.WANDERING
                 elif self.touch.pressed():
                     self.current_state = State.WALL_FOLLOWING
@@ -190,3 +211,4 @@ class Explorer:
             self.ev3.speaker.play_file(SoundFile.CONFIRM)
             self.firefight()
             sys.exit()
+
