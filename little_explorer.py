@@ -52,8 +52,10 @@ class Explorer:
                 self.drive_forward(1000)
 
             # fan smash pattern \|/
-            self.drive_forward(1000)
             self.stop()
+            self.left_motor.run(self.MOVE_POWER)
+            self.right_motor.run(self.MOVE_POWER)
+            wait(1000)
             self.smash_it()
 
             self.turn(45)
