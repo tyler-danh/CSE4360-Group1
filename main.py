@@ -14,39 +14,40 @@ DISTANCETHRESHOLD = 1200 #approximate ring diameter
 
 # Init and beep when ready.
 ev3 = EV3Brick()
-ev3.speaker.play_file(SoundFile.MOTOR_START)
+ev3.speaker.play_file(SoundFile.HORN_2) #each horn sound is 1 sec
+ev3.speaker.play_file(SoundFile.HORN_2)
+ev3.speaker.play_file(SoundFile.HORN_2)
+
 
 watch = StopWatch()
 
 gyro = GyroSensor(Port.S1, Direction.COUNTERCLOCKWISE)
 
-color_sensor = ColorSensor("""PORT HERE""") #PLEASE PUT IN PORT FOR COLOR SENSOR
+color_sensor = ColorSensor(Port.S2) #PLEASE PUT IN PORT FOR COLOR SENSOR
 
 left_motor = Motor(Port.A, positive_direction=Direction.COUNTERCLOCKWISE, gears=None)
 right_motor = Motor(Port.B, positive_direction=Direction.COUNTERCLOCKWISE, gears=None)
 
-left_sonic = UltrasonicSensor("""PORT HERE""")
-right_sonic = UltrasonicSensor("""PORT HERE""") #REMEMBER TO PUT PORTS FOR ULTRASONIC
+left_sonic = UltrasonicSensor(Port.S3)
+right_sonic = UltrasonicSensor(Port.S4) #REMEMBER TO PUT PORTS FOR ULTRASONIC
 
 #----------------------SUMO FUNCTIONS-----------------------------#
 
 def lockon():
-    while(left_sonic.distance() > DISTANCETHRESHOLD or right_sonic.distance() > DISTANCETHRESHOLD): #clockwise turn until target is found
-        left_motor.run(200)
-        right_motor.run(-200)
-
-    left_dist = left_sonic.distance()
-    right_dist = right_sonic.distance()
-    
-    if abs(left_dist - right_dist) < 60: #this means target is centered... hopefully
-        ev3.speaker.play_file(SoundFile.SHOUTING)
-        return True
-    elif left_dist < right_dist:
-        turn(-30)
-        return False
-    elif left_dist > right_dist:
-        turn(30)
-        return False
+    while True:
+        left_dist = left_sonic.distance()
+        right_dist = right_sonic.distance()
+        
+        if abs(left_dist - right_dist) < 60: #this means target is centered... hopefully
+            ev3.speaker.play_file(SoundFile.SHOUTING)
+            turn(15)
+            return False
+        elif left_dist < right_dist:
+            turn(30)
+            edge_detection()
+        elif left_dist > right_dist:
+            turn(-30)
+            edge_detection
 
 def turn(angle):
     gyro.reset_angle(0)
@@ -61,23 +62,25 @@ def turn(angle):
             left_motor.run(200)
             right_motor.run(-200)
             current_angle = gyro.angle()
+    stop()
+    wait(100)
 
 def stop():
     left_motor.stop(Stop.BRAKE)
     right_motor.stop(Stop.BRAKE)
 
 def attack():
-    target_detected = False
-    while target_detected != True:
+    searching = True
+    while searching != False:
         lockon()
     ev3.speaker.play_file(SoundFile.T_REX_ROAR)
     left_motor.dc(100) #SEND IT FORWARD!
     right_motor.dc(100)
 
-    if color_sensor.color() == Color.RED: #maybe change color detection for testing?
+def edge_detection():
+    if color_sensor.color() == Color.BLUE:
         stop()
-        left_motor.dc(-60)
-        right_motor.dc(-60)
+        turn(90)
 
 #----------------------SUMO FUNCTIONS----------------------------------#
 
