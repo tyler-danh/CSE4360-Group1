@@ -72,7 +72,7 @@ def stop():
 def attack():
     searching = True
     while searching != False:
-        lockon()
+        searching = lockon()
     ev3.speaker.play_file(SoundFile.T_REX_ROAR)
     left_motor.dc(100) #SEND IT FORWARD!
     right_motor.dc(100)
